@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Emoji Match Game</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(to bottom, #1e3c72, #2a5298);
+      text-align: center;
+      color: white;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+    }
+
+    #timer {
+      font-size: 20px;
+      margin-bottom: 15px;
+    }
+
+    #game-board {
+      display: grid;
+      grid-template-columns: repeat(4, 80px);
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      width: 80px;
+      height: 80px;
+      background-color: white;
+      color: black;
+      font-size: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border-radius: 8px;
+      border: 2px solid #00f0ff;
+      transition: transform 0.3s;
+    }
+
+    .card:hover {
+      transform: scale(1.05);
+    }
+
+    .matched {
+      background-color: #aaffaa;
+      cursor: default;
+    }
+
+    .disabled {
+      pointer-events: none;
+    }
+
+    .balloon {
+      position: fixed;
+      width: 20px;
+      height: 30px;
+      border-radius: 50%;
+      animation: float 2s ease-out forwards;
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    @keyframes float {
+      from { transform: translateY(0); opacity: 1; }
+      to { transform: translateY(-300px); opacity: 0; }
+    }
+
+    #modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+    }
+
+    #modal.show {
+      display: flex;
+    }
+
+    #modal-content {
+      background-color: white;
+      color: black;
+      padding: 30px;
+      border-radius: 10px;
+      text-align: center;
+      max-width: 300px;
+    }
+
+    #modal-content h2 {
+      margin-bottom: 20px;
+    }
+
+    #modal-content button {
+      padding: 10px 20px;
+      background-color: #00f0ff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    #modal-content button:hover {
+      background-color: #00c0cc;
+    }
+  </style>
+</head>
+<body>
+  <h1>Emoji Match Game</h1>
+  <div id="timer">Time Left: <span id="time">15</span>s</div>
+  <div id="game-board"></div>
+  <button onclick="startGame()">Restart Game</button>
+
+  <div id="modal">
+    <div id="modal-content">
+      <h2 id="result-text"></h2>
+      <button onclick="startGame()">Play Again</button>
+    </div>
+  </div>
+
+  <!-- Sound Effects -->
+  <audio id="match-sound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_6f2fe3bd50.mp3"></audio>
+  <audio id="wrong-sound" src="https://cdn.pixabay.com/audio/2021/08/04/audio_74cb3c2bb7.mp3"></audio>
+  <audio id="win-sound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_a6f9c53b08.mp3"></audio>
+  <audio id="lose-sound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_261a7064f4.mp3"></audio>
+
+  <script>
+    const emojis = ['😀', '🐶', '🍕', '🚗', '😀', '🐶', '🍕', '🚗'];
+    let cards = [], selected = [], matched = [], time = 15, interval, gameActive = true;
+    let canClick = true;
+
+    const board = document.getElementById('game-board');
+    const timeEl = document.getElementById('time');
+    const modal = document.getElementById('modal');
+    const resultText = document.getElementById('result-text');
+
+    const matchSound = document.getElementById('match-sound');
+    const wrongSound = document.getElementById('wrong-sound');
+    const winSound = document.getElementById('win-sound');
+    const loseSound = document.getElementById('lose-sound');
+
+    function shuffle(array) {
+      return array.sort(() => Math.random() - 0.5);
+    }
+
+    function startGame() {
+      board.innerHTML = '';
+      selected = [];
+      matched = [];
+      time = 15;
+      timeEl.textContent = time;
+      gameActive = true;
+      canClick = true;
+
+      clearInterval(interval);
+      modal.classList.remove('show');
+
+      interval = setInterval(() => {
+        time--;
+        timeEl.textContent = time;
+        if (time <= 0) {
+          clearInterval(interval);
+          gameActive = false;
+          loseSound.play();
+          setTimeout(() => showModal("⏰ Time's up! You lose!"), 500);
+        }
+      }, 1000);
+
+      cards = shuffle([...emojis]);
+      cards.forEach((emoji) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.textContent = '❓';
+        card.onclick = () => reveal(card, emoji);
+        board.appendChild(card);
+      });
+
+      document.body.addEventListener("click", () => {
+        matchSound.play().catch(() => {});
+        matchSound.pause();
+      }, { once: true });
+    }
+
+    function reveal(card, emoji) {
+      if (!gameActive || card.classList.contains('matched') || !canClick || selected.find(obj => obj.card === card)) return;
+
+      card.textContent = emoji;
+      selected.push({ card, emoji });
+
+      if (selected.length === 2) {
+        canClick = false;
+        if (selected[0].emoji === selected[1].emoji) {
+          matchSound.play();
+          selected.forEach(obj => obj.card.classList.add('matched'));
+          matched.push(emoji);
+          selected = [];
+          canClick = true;
+
+          if (matched.length === 4) {
+            clearInterval(interval);
+            gameActive = false;
+            winSound.play();
+            showBalloons();
+            setTimeout(() => showModal("🎉 You won!"), 500);
+          }
+        } else {
+          wrongSound.play();
+          setTimeout(() => {
+            selected.forEach(obj => obj.card.textContent = '❓');
+            selected = [];
+            canClick = true;
+          }, 700);
+        }
+      }
+    }
+
+    function showModal(message) {
+      resultText.textContent = message;
+      modal.classList.add('show');
+    }
+
+    function showBalloons() {
+      for (let i = 0; i < 100; i++) {
+        const balloon = document.createElement('div');
+        balloon.className = 'balloon';
+        balloon.style.left = Math.random() * 100 + '%';
+        balloon.style.top = '100%';
+        balloon.style.background = `hsl(${Math.random() * 360}, 100%, 60%)`;
+        document.body.appendChild(balloon);
+        setTimeout(() => balloon.remove(), 2000);
+      }
+    }
+
+    startGame();
+  </script>
+</body>
+</html>
